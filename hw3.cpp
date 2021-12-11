@@ -192,6 +192,65 @@ void logout(int sockfd, const vector<string> &para){
     return;
 }
 
+bool isNum(string port){
+    for(int i = 0 ; i < port.size() ; i++){
+        if(port[i] < '0' || port[i] > '9') return false;
+    }
+
+    return true;
+}
+
+int string2int(string port){
+    int num = 0;
+
+    for(int i = 0 ; i < port.size() ; i++)
+        num = 10 * num + port[i] - '0';
+    
+    return num;
+}
+
+void enter_room(int sockfd, const vector<string> &para){
+    if(para.size() != 3){
+        write2cli(sockfd, "Usage: enter-chat-room <port> <version>\n");
+        return;
+    }
+
+    if(!isNum(para[1])){ //if port is not a number
+        snprintf(cli_buff, sizeof(cli_buff), "Port %s is not valid.\n", para[1].c_str());
+        Write(sockfd, cli_buff, strlen(cli_buff));
+        return;
+    }
+
+    int port = string2int(para[1]);
+    if(port > 65535 || port < 1){ //if port is too big or too small
+        snprintf(cli_buff, sizeof(cli_buff), "Port %s is not valid.\n", para[1].c_str());
+        Write(sockfd, cli_buff, strlen(cli_buff));
+        return;
+    }
+
+    if(!isNum(para[2])){ //if version is not a number
+        snprintf(cli_buff, sizeof(cli_buff), "Version %s is not supported.", para[2].c_str());
+        Write(sockfd, cli_buff, strlen(cli_buff));
+        return;
+    }
+
+    int version = string2int(para[2]);
+    if(version != 1 && version != 2){ //if version is not 1 or 2
+        snprintf(cli_buff, sizeof(cli_buff), "Version %s is not supported.", para[2].c_str());
+        Write(sockfd, cli_buff, strlen(cli_buff));
+        return;
+    }
+
+    if(!isLogin[sockfd]){ //client is not login
+        write2cli(sockfd, "Please login first.\n");
+        return;
+    }
+
+    write2cli(sockfd, "Welcome to public chat room.\nPort:<port>\nVersion:<version>\n<chat_history>");
+    /*這邊還沒做完*/
+    return;
+}
+
 void bbs_main(int sockfd){
     string command = Read_line(sockfd);
     if(command[0] != 0){
@@ -213,6 +272,7 @@ void bbs_main(int sockfd){
         if(para[0] == "register") reg(sockfd, para);
         else if(para[0] == "login") login(sockfd, para);
         else if(para[0] == "logout") logout(sockfd, para);
+        else if(para[0] == "enter-chat-room") enter_room(sockfd, para);
     }
     write2cli(sockfd, "% ");
 }
