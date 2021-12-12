@@ -22,6 +22,9 @@ vector<string> user(max_size, "");
 map<string, string> user2password;
 map<string, bool> user2isLogin;
 map<string, bool> user2isBlack;
+vector<string> chat_history;
+vector<int> udp_cli;
+map<int, int> cli2version;
 
 fd_set all_set;
 
@@ -209,6 +212,23 @@ int string2int(string port){
     return num;
 }
 
+void show_msg(int sockfd, int port, int version){
+    write2cli(sockfd, "Welcome to public chat room.\n");
+    
+    snprintf(cli_buff, sizeof(cli_buff), "Port:%d\n", port);
+    Write(sockfd, cli_buff, strlen(cli_buff));
+
+    snprintf(cli_buff, sizeof(cli_buff), "Version:%d\n", version);
+    Write(sockfd, cli_buff, strlen(cli_buff));
+
+    for(string msg : chat_history){
+        snprintf(cli_buff, sizeof(cli_buff), "%s\n", msg.c_str());
+        Write(sockfd, cli_buff, strlen(cli_buff));
+    }
+
+    return;
+}
+
 void enter_room(int sockfd, const vector<string> &para){
     if(para.size() != 3){
         write2cli(sockfd, "Usage: enter-chat-room <port> <version>\n");
@@ -246,8 +266,13 @@ void enter_room(int sockfd, const vector<string> &para){
         return;
     }
 
-    write2cli(sockfd, "Welcome to public chat room.\nPort:<port>\nVersion:<version>\n<chat_history>");
+    show_msg(sockfd, port, version);
     /*這邊還沒做完*/
+    
+    return;
+}
+
+void chat(){
     return;
 }
 
@@ -277,23 +302,29 @@ void bbs_main(int sockfd){
     write2cli(sockfd, "% ");
 }
 
+void udp_main(int udpfd){
+    return;
+}
+
 int main(int argc, char** argv){
     if(argc != 2){
-        printf("Usage: ./hw2 <port>\n");
+        printf("Usage: ./hw3 <port>\n");
         return 0;
     }
 
-    int listenfd, connectfd;
+    int listenfd, udpfd, connectfd;
     struct sockaddr_in srv_addr;
     
+    /*set server address*/
     int port = char2int(argv[1]);
     bzero(&srv_addr, sizeof(srv_addr));
     srv_addr.sin_family = AF_INET;
     srv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     srv_addr.sin_port = htons(port);
     
+    /*TCP socket*/
     listenfd = Socket(AF_INET, SOCK_STREAM, 0);    
-    int flag = 1;
+    const int flag = 1;
     setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));
 
     Bind(listenfd, (struct sockaddr *) &srv_addr, sizeof(srv_addr));
@@ -308,6 +339,14 @@ int main(int argc, char** argv){
     int i = 0;
     int maxi = -1;
     int maxfd = listenfd;
+
+    /*UDP socket*/
+    udpfd = Socket(AF_INET, SOCK_DGRAM, 0);
+    setsockopt(udpfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));
+
+    Bind(udpfd, (struct sockaddr *) &srv_addr, sizeof(srv_addr));
+
+    FD_SET(udpfd, &all_set);
 
     while(1){
         memset(cli_buff, 0, sizeof(cli_buff));
@@ -336,6 +375,10 @@ int main(int argc, char** argv){
             if(--nready <= 0) continue;
         }
 
+        if(FD_ISSET(udpfd, &rset)){
+            udp_main(udpfd);
+        }
+
         for(i = 0 ; i <= maxi ; i++){
             if (cli[i] < 0) continue;
             int sockfd = cli[i];
@@ -343,5 +386,6 @@ int main(int argc, char** argv){
                 bbs_main(sockfd);
             }
         }
+
     }
 }
