@@ -79,5 +79,26 @@ ssize_t Write(int connfd, const char * cli_buff, size_t nbyte){
     return w;
 }
 
+int Recvfrom(int sockfd, void *buff, size_t nbytes, int flags, 
+              struct sockaddr* from, socklen_t *addrlen){
+    int r = recvfrom(sockfd, buff, nbytes, flags, from, addrlen);
+    if(r < 0){
+        perror("Recvfrom error");
+        exit(0);
+    }
+
+    return r;
+}
+
+int Sendto(int sockfd, const void *buff, size_t nbytes, int flags, 
+           const struct sockaddr* to, socklen_t addrlen){
+    int s = sendto(sockfd, buff, nbytes, flags, to, addrlen);
+    if(s < 0){
+        perror("Sendto error");
+        exit(0);
+    }
+
+    return s;
+}
 
 

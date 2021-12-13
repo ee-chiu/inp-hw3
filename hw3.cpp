@@ -267,12 +267,6 @@ void enter_room(int sockfd, const vector<string> &para){
     }
 
     show_msg(sockfd, port, version);
-    /*這邊還沒做完*/
-    
-    return;
-}
-
-void chat(){
     return;
 }
 
@@ -302,7 +296,40 @@ void bbs_main(int sockfd){
     write2cli(sockfd, "% ");
 }
 
-void udp_main(int udpfd){
+string Read_line_udp(int udpfd, struct sockaddr* cli_addr_ptr, int len){
+    socklen_t Len = len;
+
+    bzero(srv_buff, sizeof(srv_buff));
+    Recvfrom(udpfd, srv_buff, sizeof(srv_buff), 0, cli_addr_ptr, &Len);
+    string msg(srv_buff);
+
+    return msg;
+}
+
+void chat(){
+    cout << "enter chat\n";
+    return;
+}
+
+void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, int len){
+    string command = Read_line_udp(udpfd, cli_addr_ptr, len);
+
+    if(command[0] != 0){
+        vector<string> para = split(command);
+
+        for(int i = 0 ; i < para.size() ; i++){
+            int j = para[i].size() - 1;
+            while(para[i][j] == '\n') {
+                para[i].pop_back();
+                j--;
+            }
+        }
+
+        if(para[0] == "chat") chat();
+    }
+
+    snprintf(cli_buff, sizeof(cli_buff), "%s", "% ");
+    Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
     return;
 }
 
@@ -313,7 +340,7 @@ int main(int argc, char** argv){
     }
 
     int listenfd, udpfd, connectfd;
-    struct sockaddr_in srv_addr;
+    struct sockaddr_in srv_addr, cli_addr;
     
     /*set server address*/
     int port = char2int(argv[1]);
@@ -338,7 +365,6 @@ int main(int argc, char** argv){
     vector<int> cli(max_size, -1);
     int i = 0;
     int maxi = -1;
-    int maxfd = listenfd;
 
     /*UDP socket*/
     udpfd = Socket(AF_INET, SOCK_DGRAM, 0);
@@ -347,6 +373,7 @@ int main(int argc, char** argv){
     Bind(udpfd, (struct sockaddr *) &srv_addr, sizeof(srv_addr));
 
     FD_SET(udpfd, &all_set);
+    int maxfd = max(listenfd, udpfd);
 
     while(1){
         memset(cli_buff, 0, sizeof(cli_buff));
@@ -376,7 +403,8 @@ int main(int argc, char** argv){
         }
 
         if(FD_ISSET(udpfd, &rset)){
-            udp_main(udpfd);
+            const int len = sizeof(cli_addr);
+            udp_main(udpfd, (struct sockaddr*) &cli_addr, len);
         }
 
         for(i = 0 ; i <= maxi ; i++){
