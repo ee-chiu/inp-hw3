@@ -101,4 +101,15 @@ int Sendto(int sockfd, const void *buff, size_t nbytes, int flags,
     return s;
 }
 
+int Setsockopt(int sockfd, int level, int optname, 
+               const void *optval, socklen_t optlen){
+    int s = setsockopt(sockfd, level, optname, optval, optlen);
+    if(s < 0){
+        perror("Setsockopt");
+        exit(0);
+    }
+
+    return s;
+}
+
 

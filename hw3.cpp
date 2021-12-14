@@ -23,8 +23,8 @@ map<string, string> user2password;
 map<string, bool> user2isLogin;
 map<string, bool> user2isBlack;
 vector<string> chat_history;
-vector<int> udp_cli;
-map<int, int> cli2version;
+map<string, int> user2version;
+map<string, int> user2port;
 
 fd_set all_set;
 
@@ -267,6 +267,8 @@ void enter_room(int sockfd, const vector<string> &para){
     }
 
     show_msg(sockfd, port, version);
+    user2port[user[sockfd]] = port;
+    user2version[user[sockfd]] = version;
     return;
 }
 
@@ -278,7 +280,7 @@ void bbs_main(int sockfd){
         for(int i = 0 ; i < para.size() ; i++){
             int j = para[i].size() - 1;
             while(para[i][j-1] == '\n') {
-                para[i][j] = 0;
+                para[i].pop_back();
                 j--;
             }
         }
@@ -306,26 +308,84 @@ string Read_line_udp(int udpfd, struct sockaddr* cli_addr_ptr, int len){
     return msg;
 }
 
-void chat(){
-    cout << "enter chat\n";
+void chat(int udpfd, struct sockaddr* cli_addr_ptr, int len, vector<string> para){
+    if(para.size() != 2){
+        snprintf(cli_buff, sizeof(cli_buff), "Usage: chat <message>\n");
+        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
+        
+        return;
+    }
+
+    /*for(map<string, int>::iterator it = user2port.begin() ; it != user2port.end() ; it++){
+        int port = it->second;
+
+        struct sockaddr_in cli_addr;
+        bzero(&cli_addr, sizeof(cli_addr));
+        cli_addr.sin_family = AF_INET;
+        cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        cli_addr.sin_port = htons(port);
+
+        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, (struct sockaddr*) &cli_addr, len);
+    }*/
+    for(int i = 1; i < 65536 ; i++){
+        int port = i;
+
+        struct sockaddr_in cli_addr;
+        bzero(&cli_addr, sizeof(cli_addr));
+        cli_addr.sin_family = AF_INET;
+        cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+        cli_addr.sin_port = htons(port);
+
+        snprintf(cli_buff, sizeof(cli_buff), "%s\n", para[1].c_str());
+        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, (struct sockaddr*) &cli_addr, sizeof(cli_addr));
+    }
+
     return;
+}
+
+vector<string> get_chat_para(string command){
+    int i = 0;
+    string tmp;
+    vector<string> para;
+
+    while(i < command.size() && command[i] != ' ' && command[i] != '\n'){
+        tmp += command[i];
+        i++;
+    }
+
+    while(i < command.size() && command[i] == ' ')
+        i++;
+
+    para.push_back(tmp);
+    tmp.clear();
+
+    if(para[0] != "chat") return para;
+
+    while(i < command.size() && command[i] != '\n'){
+        tmp += command[i];
+        i++;    
+    }
+
+    para.push_back(tmp);
+
+    return para;
 }
 
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, int len){
     string command = Read_line_udp(udpfd, cli_addr_ptr, len);
 
     if(command[0] != 0){
-        vector<string> para = split(command);
+        vector<string> para = get_chat_para(command);
 
         for(int i = 0 ; i < para.size() ; i++){
             int j = para[i].size() - 1;
-            while(para[i][j] == '\n') {
+            while(!para.empty() && para[i][j] == '\n') {
                 para[i].pop_back();
                 j--;
             }
         }
 
-        if(para[0] == "chat") chat();
+        if(para[0] == "chat") chat(udpfd, cli_addr_ptr, len, para);
     }
 
     snprintf(cli_buff, sizeof(cli_buff), "%s", "% ");
@@ -368,7 +428,7 @@ int main(int argc, char** argv){
 
     /*UDP socket*/
     udpfd = Socket(AF_INET, SOCK_DGRAM, 0);
-    setsockopt(udpfd, SOL_SOCKET, SO_REUSEADDR, &flag, sizeof(int));
+    setsockopt(udpfd, SOL_SOCKET, SO_REUSEADDR | SO_BROADCAST, &flag, sizeof(int));
 
     Bind(udpfd, (struct sockaddr *) &srv_addr, sizeof(srv_addr));
 
