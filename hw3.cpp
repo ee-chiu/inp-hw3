@@ -105,6 +105,7 @@ void welcome(int sockfd){
 void Exit(int sockfd, const vector<string> &para){
     if(para.size() != 1){
         write2cli(sockfd, "Usage: exit\n");
+        write2cli(sockfd, "% ");
         return;
     }
 
@@ -249,14 +250,14 @@ void enter_room(int sockfd, const vector<string> &para){
     }
 
     if(!isNum(para[2])){ //if version is not a number
-        snprintf(cli_buff, sizeof(cli_buff), "Version %s is not supported.", para[2].c_str());
+        snprintf(cli_buff, sizeof(cli_buff), "Version %s is not supported.\n", para[2].c_str());
         Write(sockfd, cli_buff, strlen(cli_buff));
         return;
     }
 
     int version = string2int(para[2]);
     if(version != 1 && version != 2){ //if version is not 1 or 2
-        snprintf(cli_buff, sizeof(cli_buff), "Version %s is not supported.", para[2].c_str());
+        snprintf(cli_buff, sizeof(cli_buff), "Version %s is not supported.\n", para[2].c_str());
         Write(sockfd, cli_buff, strlen(cli_buff));
         return;
     }
@@ -312,7 +313,6 @@ void chat(int udpfd, struct sockaddr* cli_addr_ptr, int len, vector<string> para
     if(para.size() != 2){
         snprintf(cli_buff, sizeof(cli_buff), "Usage: chat <message>\n");
         Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
-        
         return;
     }
 
