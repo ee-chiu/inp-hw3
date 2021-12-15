@@ -316,7 +316,7 @@ void chat(int udpfd, struct sockaddr* cli_addr_ptr, int len, vector<string> para
         return;
     }
 
-    /*for(map<string, int>::iterator it = user2port.begin() ; it != user2port.end() ; it++){
+    for(map<string, int>::iterator it = user2port.begin() ; it != user2port.end() ; it++){
         int port = it->second;
 
         struct sockaddr_in cli_addr;
@@ -325,21 +325,10 @@ void chat(int udpfd, struct sockaddr* cli_addr_ptr, int len, vector<string> para
         cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
         cli_addr.sin_port = htons(port);
 
+        snprintf(cli_buff, sizeof(cli_buff), ":%s\n", para[1].c_str());
         Sendto(udpfd, cli_buff, strlen(cli_buff), 0, (struct sockaddr*) &cli_addr, len);
-    }*/
-    for(int i = 1; i < 65536 ; i++){
-        int port = i;
-
-        struct sockaddr_in cli_addr;
-        bzero(&cli_addr, sizeof(cli_addr));
-        cli_addr.sin_family = AF_INET;
-        cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        cli_addr.sin_port = htons(port);
-
-        snprintf(cli_buff, sizeof(cli_buff), "%s\n", para[1].c_str());
-        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, (struct sockaddr*) &cli_addr, sizeof(cli_addr));
     }
-
+    
     return;
 }
 
