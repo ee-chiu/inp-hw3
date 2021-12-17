@@ -299,23 +299,15 @@ void bbs_main(int sockfd){
     write2cli(sockfd, "% ");
 }
 
-string Read_line_udp(int udpfd, struct sockaddr* cli_addr_ptr, int len){
-    socklen_t Len = len;
-
+void get_packet(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     bzero(srv_buff, sizeof(srv_buff));
-    Recvfrom(udpfd, srv_buff, sizeof(srv_buff), 0, cli_addr_ptr, &Len);
-    string msg(srv_buff);
-
-    return msg;
+    Recvfrom(udpfd, srv_buff, sizeof(srv_buff), 0, cli_addr_ptr, &len);
+    return;
 }
 
-void chat(int udpfd, struct sockaddr* cli_addr_ptr, int len, vector<string> para){
-    if(para.size() != 2){
-        snprintf(cli_buff, sizeof(cli_buff), "Usage: chat <message>\n");
-        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
-        return;
-    }
-
+void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
+    get_packet(udpfd, cli_addr_ptr, len);
+    
     for(map<string, int>::iterator it = user2port.begin() ; it != user2port.end() ; it++){
         int port = it->second;
 
@@ -325,60 +317,9 @@ void chat(int udpfd, struct sockaddr* cli_addr_ptr, int len, vector<string> para
         cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
         cli_addr.sin_port = htons(port);
 
-        snprintf(cli_buff, sizeof(cli_buff), ":%s\n", para[1].c_str());
         Sendto(udpfd, cli_buff, strlen(cli_buff), 0, (struct sockaddr*) &cli_addr, len);
     }
     
-    return;
-}
-
-vector<string> get_chat_para(string command){
-    int i = 0;
-    string tmp;
-    vector<string> para;
-
-    while(i < command.size() && command[i] != ' ' && command[i] != '\n'){
-        tmp += command[i];
-        i++;
-    }
-
-    while(i < command.size() && command[i] == ' ')
-        i++;
-
-    para.push_back(tmp);
-    tmp.clear();
-
-    if(para[0] != "chat") return para;
-
-    while(i < command.size() && command[i] != '\n'){
-        tmp += command[i];
-        i++;    
-    }
-
-    para.push_back(tmp);
-
-    return para;
-}
-
-void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, int len){
-    string command = Read_line_udp(udpfd, cli_addr_ptr, len);
-
-    if(command[0] != 0){
-        vector<string> para = get_chat_para(command);
-
-        for(int i = 0 ; i < para.size() ; i++){
-            int j = para[i].size() - 1;
-            while(!para.empty() && para[i][j] == '\n') {
-                para[i].pop_back();
-                j--;
-            }
-        }
-
-        if(para[0] == "chat") chat(udpfd, cli_addr_ptr, len, para);
-    }
-
-    snprintf(cli_buff, sizeof(cli_buff), "%s", "% ");
-    Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
     return;
 }
 
@@ -452,7 +393,7 @@ int main(int argc, char** argv){
         }
 
         if(FD_ISSET(udpfd, &rset)){
-            const int len = sizeof(cli_addr);
+            const socklen_t len = sizeof(cli_addr);
             udp_main(udpfd, (struct sockaddr*) &cli_addr, len);
         }
 
