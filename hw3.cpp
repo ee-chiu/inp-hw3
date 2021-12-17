@@ -17,8 +17,8 @@ using namespace std;
 
 char cli_buff[10000];
 char srv_buff[10000];
-char udp_buff1[4096];
-char udp_buff2[4096];
+char udp_buff1[2000];
+char udp_buff2[2000];
 const int max_size = 20;
 vector<bool> isLogin(max_size, false);
 vector<string> user(max_size, "");
@@ -319,12 +319,31 @@ struct b {
     unsigned char data[0];
 } __attribute__((packed));
 
+struct c {
+    unsigned char data[0];
+} __attribute__((packed));
+
 unsigned char* get_data(unsigned short len, struct b* pb){
     unsigned char* data = (unsigned char *) calloc(len, sizeof(char));
     bzero(data, len);
     memcpy(data, pb->data, len);
     return data;
 }
+
+unsigned short get_len2(unsigned char* tmp_data){
+    unsigned short name_len = 0;
+    for( ; *(tmp_data) != '\n' ; tmp_data++, name_len++) ;
+
+    return name_len;
+}
+
+unsigned char* get_data2(unsigned short len, struct c* pc){
+    unsigned char* data = (unsigned char *) calloc(len, sizeof(char));
+    bzero(data, len);
+    memcpy(data, pc->data, len);
+    return data;
+}
+
 
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     get_packet(udpfd, cli_addr_ptr, len);
@@ -336,7 +355,7 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
 
         struct b* pb1 = (struct b *) (srv_buff + sizeof(struct a));
         unsigned short name_len = ntohs(pb1->len);
-        unsigned char* name = get_data(len, pb1);
+        unsigned char* name = get_data(name_len, pb1);
         struct b* pb2 = (struct b *) (srv_buff + sizeof(struct a) + sizeof(struct b) + name_len);
         unsigned short msg_len = ntohs(pb2->len);
         unsigned char* msg = get_data(msg_len, pb2);
@@ -355,7 +374,20 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     }
 
     else if(version == 2){
+        memcpy(udp_buff2, srv_buff, sizeof(udp_buff2));
 
+        unsigned char* tmp_data = (unsigned char *) (srv_buff + sizeof(struct a));
+        unsigned short name_len = get_len2(tmp_data);
+        struct c* pc1 = (struct c *) (srv_buff + sizeof(struct a));
+        unsigned char* name = get_data2(name_len, pc1);
+
+        unsigned char* tmp_data2 = (unsigned char *) (srv_buff + sizeof(struct a) + (name_len + 1));
+        unsigned short msg_len = get_len2(tmp_data2);
+        struct c* pc2 = (struct c *) (srv_buff + sizeof(struct a) + (name_len + 1));
+        unsigned char* msg = get_data2(msg_len, pc2);
+
+        //snprintf(cli_buff, sizeof(cli_buff), "msg_len: %hu, msg: %s", msg_len, msg);
+        //Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
     }
 
     /*for(int port : ports){
