@@ -17,6 +17,8 @@ using namespace std;
 
 char cli_buff[10000];
 char srv_buff[10000];
+char udp_buff1[4096];
+char udp_buff2[4096];
 const int max_size = 20;
 vector<bool> isLogin(max_size, false);
 vector<string> user(max_size, "");
@@ -317,23 +319,39 @@ struct b {
     unsigned char data[0];
 } __attribute__((packed));
 
+unsigned char* get_data(unsigned short len, struct b* pb){
+    unsigned char* data = (unsigned char *) calloc(len, sizeof(char));
+    bzero(data, len);
+    memcpy(data, pb->data, len);
+    return data;
+}
+
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     get_packet(udpfd, cli_addr_ptr, len);
     struct a* pa = (struct a *) srv_buff;
     int version = pa->version;
-    struct b* pb1 = (struct b *) (srv_buff + sizeof(struct a));
-    unsigned short len_ = 0;
-    unsigned char* data = NULL;
 
     if(version == 1){
-        len_ = ntohs(pb1->len);
-        data = (unsigned char *) malloc(len_);
-        bzero(data, len_);
-        memcpy(data, pb1->data, len_);
-        data[len_] = 0;
+        memcpy(udp_buff1, srv_buff, sizeof(udp_buff1));
 
-        snprintf(cli_buff, sizeof(cli_buff), "data: %s", data);
-        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
+        struct b* pb1 = (struct b *) (srv_buff + sizeof(struct a));
+        unsigned short name_len = ntohs(pb1->len);
+        unsigned char* name = get_data(len, pb1);
+        struct b* pb2 = (struct b *) (srv_buff + sizeof(struct a) + sizeof(struct b) + name_len);
+        unsigned short msg_len = ntohs(pb2->len);
+        unsigned char* msg = get_data(msg_len, pb2);
+
+        for(int port : ports){
+            struct sockaddr_in cli_addr;
+            bzero(&cli_addr, sizeof(cli_addr));
+            cli_addr.sin_family = AF_INET;
+            cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+            cli_addr.sin_port = htons(port);
+            
+            int this_version = port2version[port];
+            if(this_version == 1) Sendto(udpfd, udp_buff1, sizeof(udp_buff1), 0, (struct sockaddr*) &cli_addr, len);
+            else if(this_version == 2) ;
+        }
     }
 
     else if(version == 2){
