@@ -11,6 +11,7 @@
 #include <sstream>
 #include <ctime>
 #include <algorithm>
+#include <stdlib.h>
 
 using namespace std;
 
@@ -23,8 +24,8 @@ map<string, string> user2password;
 map<string, bool> user2isLogin;
 map<string, bool> user2isBlack;
 vector<string> chat_history;
-map<string, int> user2version;
-map<string, int> user2port;
+vector<int> ports;
+map<int, int> port2version;
 
 fd_set all_set;
 
@@ -268,8 +269,8 @@ void enter_room(int sockfd, const vector<string> &para){
     }
 
     show_msg(sockfd, port, version);
-    user2port[user[sockfd]] = port;
-    user2version[user[sockfd]] = version;
+    ports.push_back(port);
+    port2version[port] = version;
     return;
 }
 
@@ -305,12 +306,41 @@ void get_packet(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     return;
 }
 
+struct a {
+    unsigned char flag;
+    unsigned char version;
+    unsigned char payload[0];
+} __attribute__((packed));
+
+struct b {
+    unsigned short len;
+    unsigned char data[0];
+} __attribute__((packed));
+
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     get_packet(udpfd, cli_addr_ptr, len);
-    
-    for(map<string, int>::iterator it = user2port.begin() ; it != user2port.end() ; it++){
-        int port = it->second;
+    struct a* pa = (struct a *) srv_buff;
+    int version = pa->version;
+    struct b* pb1 = (struct b *) (srv_buff + sizeof(struct a));
+    unsigned short len_ = 0;
+    unsigned char* data = NULL;
 
+    if(version == 1){
+        len_ = ntohs(pb1->len);
+        data = (unsigned char *) malloc(len_);
+        bzero(data, len_);
+        memcpy(data, pb1->data, len_);
+        data[len_] = 0;
+
+        snprintf(cli_buff, sizeof(cli_buff), "data: %s", data);
+        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
+    }
+
+    else if(version == 2){
+
+    }
+
+    /*for(int port : ports){
         struct sockaddr_in cli_addr;
         bzero(&cli_addr, sizeof(cli_addr));
         cli_addr.sin_family = AF_INET;
@@ -318,7 +348,7 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         cli_addr.sin_port = htons(port);
 
         Sendto(udpfd, cli_buff, strlen(cli_buff), 0, (struct sockaddr*) &cli_addr, len);
-    }
+    }*/
     
     return;
 }
