@@ -391,6 +391,54 @@ const char* encode(const unsigned char* data, const unsigned short len, int &enc
     return result.c_str();
 }
 
+string binary2(int n){
+    string tmp;
+    while(n != 0) {
+        tmp.push_back(n % 2 + '0');
+        n /= 2;
+    }
+
+    while(tmp.size() < 6) tmp.push_back('0');
+
+    std::reverse(tmp.begin(), tmp.end());
+    return tmp;
+}
+
+string get_bits2(const unsigned char* data, const unsigned short len){
+    string bits;
+    for(int i = 0 ; i < len ; i++) {
+        if(data[i] >= 'A' && data[i] <= 'Z') bits += binary2(data[i] - 'A');
+        else if(data[i] >= 'a' && data[i] <= 'z') bits += binary2(data[i] - 'a' + 26);
+        else if(data[i] >= '0' && data[i] <= '9') bits += binary2(data[i] - '0' + 52);
+        else if(data[i] == '+') bits += binary2(62);
+        else if(data[i] == '/') bits += binary2(63);
+    }
+
+    return bits;
+}
+
+const char* decode(const unsigned char* data, const unsigned short len, int &decode_len){
+    string bits = get_bits2(data, len);
+    string result;
+
+    for(int i = 0 ; i < bits.size() ; i += 8){
+        char c = 0;
+        c += 128 * (bits[i] - '0');
+        c +=  64 * (bits[i + 1] - '0');
+        c +=  32 * (bits[i + 2] - '0');
+        c +=  16 * (bits[i + 3] - '0');
+        c +=   8 * (bits[i + 4] - '0');
+        c +=   4 * (bits[i + 5] - '0');
+        c +=   2 * (bits[i + 6] - '0');
+        c +=   1 * (bits[i + 7] - '0');
+
+        result.push_back(c);
+    }
+
+    decode_len = result.size();
+    return result.c_str();
+}
+
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     get_packet(udpfd, cli_addr_ptr, len);
     struct a* pa = (struct a *) srv_buff;
@@ -467,15 +515,19 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
                 pA->flag = 0x01;
                 pA->version = 0x01;
                 
+                int name_decode_len = -1;
+                const char* name_decode = decode(name, name_len, name_decode_len);
                 struct b* pB1 = (struct b *) (udp_buff1 + sizeof(struct a));
-                pB1->len = htons(name_len);
-                memcpy(pB1->data, name, name_len);
+                pB1->len = htons(name_decode_len);
+                memcpy(pB1->data, name_decode, name_decode_len);
                 
-                struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_len);
-                pB2->len = htons(msg_len);
-                memcpy(pB2->data, msg, msg_len);
+                int msg_decode_len = -1;
+                const char* msg_decode = decode(msg, msg_len, msg_decode_len);
+                struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_decode_len);
+                pB2->len = htons(msg_decode_len);
+                memcpy(pB2->data, msg_decode, msg_decode_len);
 
-                int size = 1 + 1 + 2 + name_len + 2 + msg_len;
+                int size = 1 + 1 + 2 + name_decode_len + 2 + msg_decode_len;
                 Sendto(udpfd, udp_buff1, size, 0, (struct sockaddr*) &cli_addr, len);
             }
 
