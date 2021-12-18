@@ -439,6 +439,15 @@ const char* decode(const unsigned char* data, const unsigned short len, int &dec
     return result.c_str();
 }
 
+void add_history(const char* name, const char* msg){  
+    string name_str(name);
+    string msg_str(msg);
+    string chat = name_str + ":" + msg_str;
+    chat_history.push_back(chat);
+
+    return;
+}
+
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     get_packet(udpfd, cli_addr_ptr, len);
     struct a* pa = (struct a *) srv_buff;
@@ -447,12 +456,30 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     if(version == 1){
         memcpy(udp_buff1, srv_buff, sizeof(udp_buff1));
 
+        /*analyze version 1 packet*/
         struct b* pb1 = (struct b *) (srv_buff + sizeof(struct a));
         unsigned short name_len = ntohs(pb1->len);
         unsigned char* name = get_data(name_len, pb1);
         struct b* pb2 = (struct b *) (srv_buff + sizeof(struct a) + sizeof(struct b) + name_len);
         unsigned short msg_len = ntohs(pb2->len);
         unsigned char* msg = get_data(msg_len, pb2);
+
+        /*set version 2 packet*/
+        struct a* pA = (struct a *) udp_buff2;
+        pA->flag = 0x01;
+        pA->version = 0x02;
+
+        int name_encode_len = -1;
+        const char* name_encode = encode(name, name_len, name_encode_len);
+        struct c* pC1 = (struct c *) (udp_buff2 + sizeof(struct a));
+        memcpy(pC1->data, name_encode, name_encode_len);
+
+        int msg_encode_len = -1;
+        const char* msg_encode = encode(msg, msg_len, msg_encode_len);
+        struct c* pC2 = (struct c *) (udp_buff2 + sizeof(struct a) + name_encode_len);
+        memcpy(pC2->data, msg_encode, msg_encode_len);
+
+        add_history((const char *) name, (const char *) msg);
 
         for(int port : ports){
             struct sockaddr_in cli_addr;
@@ -469,20 +496,6 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
             }
 
             else if(this_version == 2) {
-                struct a* pA = (struct a *) udp_buff2;
-                pA->flag = 0x01;
-                pA->version = 0x02;
-
-                int name_encode_len = -1;
-                const char* name_encode = encode(name, name_len, name_encode_len);
-                struct c* pC1 = (struct c *) (udp_buff2 + sizeof(struct a));
-                memcpy(pC1->data, name_encode, name_encode_len);
-
-                int msg_encode_len = -1;
-                const char* msg_encode = encode(msg, msg_len, msg_encode_len);
-                struct c* pC2 = (struct c *) (udp_buff2 + sizeof(struct a) + name_encode_len);
-                memcpy(pC2->data, msg_encode, msg_encode_len);
-
                 int size = 1 + 1 + name_encode_len + msg_encode_len;
                 Sendto(udpfd, udp_buff2, size, 0, (struct sockaddr *) &cli_addr, len);
             }
@@ -492,6 +505,7 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     else if(version == 2){
         memcpy(udp_buff2, srv_buff, sizeof(udp_buff2));
 
+        /*analyze version 2 packet*/
         unsigned char* tmp_data = (unsigned char *) (srv_buff + sizeof(struct a));
         unsigned short name_len = get_len2(tmp_data);
         struct c* pc1 = (struct c *) (srv_buff + sizeof(struct a));
@@ -502,6 +516,25 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         struct c* pc2 = (struct c *) (srv_buff + sizeof(struct a) + (name_len + 1));
         unsigned char* msg = get_data2(msg_len, pc2);
 
+        /*set version 1 packet*/
+        struct a* pA = (struct a *) udp_buff1;
+        pA->flag = 0x01;
+        pA->version = 0x01;
+        
+        int name_decode_len = -1;
+        const char* name_decode = decode(name, name_len, name_decode_len);
+        struct b* pB1 = (struct b *) (udp_buff1 + sizeof(struct a));
+        pB1->len = htons(name_decode_len);
+        memcpy(pB1->data, name_decode, name_decode_len);
+        
+        int msg_decode_len = -1;
+        const char* msg_decode = decode(msg, msg_len, msg_decode_len);
+        struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_decode_len);
+        pB2->len = htons(msg_decode_len);
+        memcpy(pB2->data, msg_decode, msg_decode_len);
+
+        add_history(name_decode, msg_decode);
+
         for(int port : ports){
             struct sockaddr_in cli_addr;
             bzero(&cli_addr, sizeof(cli_addr));
@@ -511,22 +544,6 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
             
             int this_version = port2version[port];
             if(this_version == 1) {
-                struct a* pA = (struct a *) udp_buff1;
-                pA->flag = 0x01;
-                pA->version = 0x01;
-                
-                int name_decode_len = -1;
-                const char* name_decode = decode(name, name_len, name_decode_len);
-                struct b* pB1 = (struct b *) (udp_buff1 + sizeof(struct a));
-                pB1->len = htons(name_decode_len);
-                memcpy(pB1->data, name_decode, name_decode_len);
-                
-                int msg_decode_len = -1;
-                const char* msg_decode = decode(msg, msg_len, msg_decode_len);
-                struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_decode_len);
-                pB2->len = htons(msg_decode_len);
-                memcpy(pB2->data, msg_decode, msg_decode_len);
-
                 int size = 1 + 1 + 2 + name_decode_len + 2 + msg_decode_len;
                 Sendto(udpfd, udp_buff1, size, 0, (struct sockaddr*) &cli_addr, len);
             }
@@ -536,8 +553,6 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
                 Sendto(udpfd, udp_buff2, size, 0, (struct sockaddr*) &cli_addr, len);
             }
         }
-        //snprintf(cli_buff, sizeof(cli_buff), "msg_len: %hu, msg: %s", msg_len, msg);
-        //Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
     }
 
     return;
