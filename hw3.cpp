@@ -358,7 +358,8 @@ string binary(char c){
 string get_bits(const unsigned char* data, const unsigned short len){
     string bits;
     for(int i = 0 ; i < len ; i++) bits += binary(data[i]);
-    while(bits.size() % 24 != 0) bits.push_back('0');
+    while(bits.size() % 6 != 0) bits.push_back('0');
+    while(bits.size() % 24 != 0) bits.push_back('-');
 
     return bits;
 }
@@ -366,8 +367,9 @@ string get_bits(const unsigned char* data, const unsigned short len){
 const char* encode(const unsigned char* data, const unsigned short len, int &encode_len){
     string bits = get_bits(data, len);
     string result;
+    int i = 0;
 
-    for(int i = 0 ; i < bits.size() ; i += 6){
+    for(i = 0 ; i < bits.size() && bits[i] != '-'; i += 6){
         int index = 0;
         index += 32 * (bits[i] - '0');
         index += 16 * (bits[i + 1] - '0');
@@ -385,6 +387,9 @@ const char* encode(const unsigned char* data, const unsigned short len, int &enc
 
         result.push_back(c);
     }
+
+    for( ; i < bits.size() ; i += 6)  result.push_back('=');
+    
     result.push_back('\n');
 
     encode_len = result.size();
@@ -413,6 +418,12 @@ string get_bits2(const unsigned char* data, const unsigned short len){
         else if(data[i] == '+') bits += binary2(62);
         else if(data[i] == '/') bits += binary2(63);
     }
+
+    if(data[len-2] == '=')
+        for(int i = 1 ; i <= 4 ; i++) bits.pop_back();
+
+    else if(data[len-1] == '=')
+        for(int i = 1 ; i <= 2 ; i++) bits.pop_back();
 
     return bits;
 }
@@ -449,6 +460,9 @@ void add_history(const char* name, const char* msg){
 }
 
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
+    bzero(&udp_buff1, sizeof(udp_buff1));
+    bzero(&udp_buff2, sizeof(udp_buff2));
+    
     get_packet(udpfd, cli_addr_ptr, len);
     struct a* pa = (struct a *) srv_buff;
     int version = pa->version;
@@ -533,7 +547,7 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         pB2->len = htons(msg_decode_len);
         memcpy(pB2->data, msg_decode, msg_decode_len);
 
-        add_history(name_decode, msg_decode);
+        add_history((const char *) pB1->data, (const char *) pB2->data);
 
         for(int port : ports){
             struct sockaddr_in cli_addr;
