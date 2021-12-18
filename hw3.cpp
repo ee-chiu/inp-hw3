@@ -368,8 +368,13 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
             cli_addr.sin_port = htons(port);
             
             int this_version = port2version[port];
-            if(this_version == 1) Sendto(udpfd, udp_buff1, sizeof(udp_buff1), 0, (struct sockaddr*) &cli_addr, len);
-            else if(this_version == 2) ;
+            if(this_version == 1) {
+                int size = 1 + 1 + 2 + name_len + 2 + msg_len;
+                Sendto(udpfd, udp_buff1, size, 0, (struct sockaddr*) &cli_addr, len);
+            }
+            else if(this_version == 2) {
+                ;
+            }
         }
     }
 
@@ -386,20 +391,40 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         struct c* pc2 = (struct c *) (srv_buff + sizeof(struct a) + (name_len + 1));
         unsigned char* msg = get_data2(msg_len, pc2);
 
+        for(int port : ports){
+            struct sockaddr_in cli_addr;
+            bzero(&cli_addr, sizeof(cli_addr));
+            cli_addr.sin_family = AF_INET;
+            cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+            cli_addr.sin_port = htons(port);
+            
+            int this_version = port2version[port];
+            if(this_version == 1) {
+                struct a* pA = (struct a *) udp_buff1;
+                pA->flag = 0x01;
+                pA->version = 0x01;
+                
+                struct b* pB1 = (struct b *) (udp_buff1 + sizeof(struct a));
+                pB1->len = htons(name_len);
+                memcpy(pB1->data, name, name_len);
+                
+                struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_len);
+                pB2->len = htons(msg_len);
+                memcpy(pB2->data, msg, msg_len);
+
+                int size = 1 + 1 + 2 + name_len + 2 + msg_len;
+                Sendto(udpfd, udp_buff1, size, 0, (struct sockaddr*) &cli_addr, len);
+            }
+
+            else if(this_version == 2) {
+                int size = 1 + 1 + name_len + 1 + msg_len + 1;
+                Sendto(udpfd, udp_buff2, size, 0, (struct sockaddr*) &cli_addr, len);
+            }
+        }
         //snprintf(cli_buff, sizeof(cli_buff), "msg_len: %hu, msg: %s", msg_len, msg);
         //Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
     }
 
-    /*for(int port : ports){
-        struct sockaddr_in cli_addr;
-        bzero(&cli_addr, sizeof(cli_addr));
-        cli_addr.sin_family = AF_INET;
-        cli_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-        cli_addr.sin_port = htons(port);
-
-        Sendto(udpfd, cli_buff, strlen(cli_buff), 0, (struct sockaddr*) &cli_addr, len);
-    }*/
-    
     return;
 }
 
