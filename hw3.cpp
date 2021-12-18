@@ -344,6 +344,52 @@ unsigned char* get_data2(unsigned short len, struct c* pc){
     return data;
 }
 
+string binary(char c){
+    string tmp;
+    while(c != 0) {
+        tmp.push_back(c % 2 + '0');
+        c /= 2;
+    }
+
+    std::reverse(tmp.begin(), tmp.end());
+    return tmp;
+}
+
+string get_bits(const unsigned char* data, const unsigned short len){
+    string bits;
+    for(int i = 0 ; i < len ; i++) bits += binary(data[i]);
+    while(bits.size() % 24 != 0) bits.push_back('0');
+
+    return bits;
+}
+
+const char* encode(const unsigned char* data, const unsigned short len, int &encode_len){
+    string bits = get_bits(data, len);
+    string result;
+
+    for(int i = 0 ; i < bits.size() ; i += 6){
+        int index = 0;
+        index += 32 * (bits[i] - '0');
+        index += 16 * (bits[i + 1] - '0');
+        index +=  8 * (bits[i + 2] - '0');
+        index +=  4 * (bits[i + 3] - '0');
+        index +=  2 * (bits[i + 4] - '0');
+        index +=  1 * (bits[i + 5] - '0');
+
+        char c;
+        if(index <= 25) c = 'A' + index;
+        else if(index >= 26 && index <= 51) c = 'a' + (index - 26);
+        else if(index >= 52 && index <= 61) c = '0' + (index - 52);
+        else if(index == 62) c = '+';
+        else if(index == 63) c = '/';
+
+        result.push_back(c);
+    }
+    result.push_back('\n');
+
+    encode_len = result.size();
+    return result.c_str();
+}
 
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     get_packet(udpfd, cli_addr_ptr, len);
@@ -368,12 +414,29 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
             cli_addr.sin_port = htons(port);
             
             int this_version = port2version[port];
+
             if(this_version == 1) {
                 int size = 1 + 1 + 2 + name_len + 2 + msg_len;
-                Sendto(udpfd, udp_buff1, size, 0, (struct sockaddr*) &cli_addr, len);
+                Sendto(udpfd, udp_buff1, size, 0, (struct sockaddr *) &cli_addr, len);
             }
+
             else if(this_version == 2) {
-                ;
+                struct a* pA = (struct a *) udp_buff2;
+                pA->flag = 0x01;
+                pA->version = 0x02;
+
+                int name_encode_len = -1;
+                const char* name_encode = encode(name, name_len, name_encode_len);
+                struct c* pC1 = (struct c *) (udp_buff2 + sizeof(struct a));
+                memcpy(pC1->data, name_encode, name_encode_len);
+
+                int msg_encode_len = -1;
+                const char* msg_encode = encode(msg, msg_len, msg_encode_len);
+                struct c* pC2 = (struct c *) (udp_buff2 + sizeof(struct a) + name_encode_len);
+                memcpy(pC2->data, msg_encode, msg_encode_len);
+
+                int size = 1 + 1 + name_encode_len + msg_encode_len;
+                Sendto(udpfd, udp_buff2, size, 0, (struct sockaddr *) &cli_addr, len);
             }
         }
     }
