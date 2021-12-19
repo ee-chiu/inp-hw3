@@ -431,7 +431,7 @@ string get_bits2(const unsigned char* data, const unsigned short len){
     return bits;
 }
 
-const char* decode(const unsigned char* data, const unsigned short len, int &decode_len){
+string decode(const unsigned char* data, const unsigned short len, int &decode_len){
     string bits = get_bits2(data, len);
     string result;
 
@@ -450,7 +450,7 @@ const char* decode(const unsigned char* data, const unsigned short len, int &dec
     }
 
     decode_len = result.size();
-    return result.c_str();
+    return result;
 }
 
 void add_history(const char* name, const char* msg){  
@@ -541,13 +541,15 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         pA->version = 0x01;
         
         int name_decode_len = -1;
-        const char* name_decode = decode(name, name_len, name_decode_len);
+        string name_decode_str = decode(name, name_len, name_decode_len);
+        const char* name_decode = name_decode_str.c_str();
         struct b* pB1 = (struct b *) (udp_buff1 + sizeof(struct a));
         pB1->len = htons(name_decode_len);
         memcpy(pB1->data, name_decode, name_decode_len);
         
         int msg_decode_len = -1;
-        const char* msg_decode = decode(msg, msg_len, msg_decode_len);
+        string msg_decode_str = decode(msg, msg_len, msg_decode_len);
+        const char* msg_decode = msg_decode_str.c_str();
         struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_decode_len);
         pB2->len = htons(msg_decode_len);
         memcpy(pB2->data, msg_decode, msg_decode_len);
