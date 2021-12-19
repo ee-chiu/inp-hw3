@@ -26,8 +26,10 @@ map<string, string> user2password;
 map<string, bool> user2isLogin;
 map<string, bool> user2isBlack;
 vector<string> chat_history;
+map<string, int> user2port;
 vector<int> ports;
 map<int, int> port2version;
+map<string, int> violation_count;
 
 fd_set all_set;
 
@@ -165,9 +167,10 @@ void login(int sockfd, const vector<string> &para){
         return;
     }
 
-    if(user2isBlack[para[1]]){ //user is in blacklist
+    if(user2isBlack.find(para[1]) != user2isBlack.end()){ //user is in blacklist
         snprintf(cli_buff, sizeof(cli_buff), "We don't welcome %s!\n", para[1].c_str());
         Write(sockfd, cli_buff, strlen(cli_buff));
+        return;
     }
 
     if(user2password[para[1]] != para[2]){ //password is wrong
@@ -273,6 +276,7 @@ void enter_room(int sockfd, const vector<string> &para){
     show_msg(sockfd, port, version);
     ports.push_back(port);
     port2version[port] = version;
+    user2port[user[sockfd]] = port;
     return;
 }
 
@@ -472,17 +476,39 @@ void convert(char* data, const char * word){
     return;
 }
 
-void filter(char* data){
-    if(strstr(data, "how") != NULL) convert(data, "how");
-    if(strstr(data, "you") != NULL) convert(data, "you");
-    if(strstr(data, "or") != NULL) convert(data, "or");
-    if(strstr(data, "pek0") != NULL) convert(data, "pek0");
-    if(strstr(data, "tea") != NULL) convert(data, "tea");
-    if(strstr(data, "ha") != NULL) convert(data, "ha");
-    if(strstr(data, "kon") != NULL) convert(data, "kon");
-    if(strstr(data, "pain") != NULL) convert(data, "pain");
-    if(strstr(data, "Starburst Stream") != NULL) convert(data, "Starburst Stream");
+bool filter(char* data){
+    bool found = false;
 
+    if(strstr(data, "how") != NULL) { convert(data, "how"); found = true; }
+    if(strstr(data, "you") != NULL) { convert(data, "you"); found = true; }
+    if(strstr(data, "or") != NULL) { convert(data, "or"); found = true; }
+    if(strstr(data, "pek0") != NULL) { convert(data, "pek0"); found = true; }
+    if(strstr(data, "tea") != NULL) { convert(data, "tea"); found = true; }
+    if(strstr(data, "ha") != NULL) { convert(data, "ha"); found = true; }
+    if(strstr(data, "kon") != NULL) { convert(data, "kon"); found = true; }
+    if(strstr(data, "pain") != NULL) { convert(data, "pain"); found = true; }
+    if(strstr(data, "Starburst Stream") != NULL) { convert(data, "Starburst Stream"); found = true; }
+
+    return found;
+}
+
+void kick(string name_str){
+    int sockfd = 0;
+    for(sockfd = 0 ; sockfd < (int) user.size() ; sockfd++){
+        if(user[sockfd] == name_str) break;
+    }
+
+    vector<string> para;
+    para.push_back("logout");
+    logout(sockfd, para);
+    write2cli(sockfd, "% ");
+
+    int port = user2port[name_str];
+    for(int i = 0 ; i < (int) ports.size() ; i++){
+        if(ports[i] == port) ports.erase(ports.begin() + i);
+    }
+
+    user2isBlack[name_str] = true;
     return;
 }
 
@@ -501,10 +527,14 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         struct b* pb1 = (struct b *) (srv_buff + sizeof(struct a));
         unsigned short name_len = ntohs(pb1->len);
         unsigned char* name = get_data(name_len, pb1);
+        string name_str((const char*) name);
         struct b* pb2 = (struct b *) (srv_buff + sizeof(struct a) + sizeof(struct b) + name_len);
         unsigned short msg_len = ntohs(pb2->len);
         unsigned char* msg = get_data(msg_len, pb2);
-        filter((char*) msg);
+        bool found = filter((char*) msg);
+
+        if(found) violation_count[name_str]++;
+        if(violation_count[name_str] >= 3) kick(name_str);
 
         /*update version 1 packet msg*/
         struct b* pb2_ = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_len);
@@ -579,14 +609,12 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         int msg_decode_len = -1;
         string msg_decode_str = decode(msg, msg_len, msg_decode_len);
         const char* msg_decode = msg_decode_str.c_str();
-        filter((char*) msg_decode);
+        bool found = filter((char*) msg_decode);
+        if(found) violation_count[name_decode_str]++;
+        if(violation_count[name_decode_str] >= 3) kick(name_decode_str);
         struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_decode_len);
         pB2->len = htons(msg_decode_len);
         memcpy(pB2->data, msg_decode, msg_decode_len);
-
-        //snprintf(cli_buff, sizeof(cli_buff), "name: %s, msg: %s", pB1->data, pB2->data);
-        //Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
-
 
         /*update version 2 packet*/
         struct c* pc2_ = (struct c *) (udp_buff2 + sizeof(struct a) + (name_len + 1));
