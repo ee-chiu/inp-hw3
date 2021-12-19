@@ -200,7 +200,7 @@ void logout(int sockfd, const vector<string> &para){
 }
 
 bool isNum(string port){
-    for(int i = 0 ; i < port.size() ; i++){
+    for(int i = 0 ; i < (int) port.size() ; i++){
         if(port[i] < '0' || port[i] > '9') return false;
     }
 
@@ -210,7 +210,7 @@ bool isNum(string port){
 int string2int(string port){
     int num = 0;
 
-    for(int i = 0 ; i < port.size() ; i++)
+    for(int i = 0 ; i < (int) port.size() ; i++)
         num = 10 * num + port[i] - '0';
     
     return num;
@@ -281,7 +281,7 @@ void bbs_main(int sockfd){
     if(command[0] != 0){
         vector<string> para = split(command);
 
-        for(int i = 0 ; i < para.size() ; i++){
+        for(int i = 0 ; i < (int) para.size() ; i++){
             int j = para[i].size() - 1;
             while(para[i][j-1] == '\n') {
                 para[i].pop_back();
@@ -351,6 +351,8 @@ string binary(char c){
         c /= 2;
     }
 
+    while(tmp.size() < 8) tmp.push_back('0');
+
     std::reverse(tmp.begin(), tmp.end());
     return tmp;
 }
@@ -364,12 +366,12 @@ string get_bits(const unsigned char* data, const unsigned short len){
     return bits;
 }
 
-const char* encode(const unsigned char* data, const unsigned short len, int &encode_len){
+string encode(const unsigned char* data, const unsigned short len, int &encode_len){
     string bits = get_bits(data, len);
     string result;
     int i = 0;
 
-    for(i = 0 ; i < bits.size() && bits[i] != '-'; i += 6){
+    for(i = 0 ; i < (int) bits.size() && bits[i] != '-'; i += 6){
         int index = 0;
         index += 32 * (bits[i] - '0');
         index += 16 * (bits[i + 1] - '0');
@@ -378,7 +380,7 @@ const char* encode(const unsigned char* data, const unsigned short len, int &enc
         index +=  2 * (bits[i + 4] - '0');
         index +=  1 * (bits[i + 5] - '0');
 
-        char c;
+        char c = '|';
         if(index <= 25) c = 'A' + index;
         else if(index >= 26 && index <= 51) c = 'a' + (index - 26);
         else if(index >= 52 && index <= 61) c = '0' + (index - 52);
@@ -388,12 +390,13 @@ const char* encode(const unsigned char* data, const unsigned short len, int &enc
         result.push_back(c);
     }
 
-    for( ; i < bits.size() ; i += 6)  result.push_back('=');
+    for( ; i < (int) bits.size() ; i += 6)  result.push_back('=');
     
     result.push_back('\n');
 
     encode_len = result.size();
-    return result.c_str();
+
+    return result;
 }
 
 string binary2(int n){
@@ -432,7 +435,7 @@ const char* decode(const unsigned char* data, const unsigned short len, int &dec
     string bits = get_bits2(data, len);
     string result;
 
-    for(int i = 0 ; i < bits.size() ; i += 8){
+    for(int i = 0 ; i < (int) bits.size() ; i += 8){
         char c = 0;
         c += 128 * (bits[i] - '0');
         c +=  64 * (bits[i + 1] - '0');
@@ -484,12 +487,14 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         pA->version = 0x02;
 
         int name_encode_len = -1;
-        const char* name_encode = encode(name, name_len, name_encode_len);
+        string name_encode_str = encode(name, name_len, name_encode_len);
+        const char* name_encode = name_encode_str.c_str();
         struct c* pC1 = (struct c *) (udp_buff2 + sizeof(struct a));
         memcpy(pC1->data, name_encode, name_encode_len);
 
         int msg_encode_len = -1;
-        const char* msg_encode = encode(msg, msg_len, msg_encode_len);
+        string msg_encode_str = encode(msg, msg_len, msg_encode_len);
+        const char* msg_encode = msg_encode_str.c_str();
         struct c* pC2 = (struct c *) (udp_buff2 + sizeof(struct a) + name_encode_len);
         memcpy(pC2->data, msg_encode, msg_encode_len);
 
