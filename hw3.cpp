@@ -532,7 +532,10 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     
     get_packet(udpfd, cli_addr_ptr, len);
     struct a* pa = (struct a *) srv_buff;
+    int flag = pa->flag;
     int version = pa->version;
+
+    if(flag != 1) return;
 
     if(version == 1){
         memcpy(udp_buff1, srv_buff, sizeof(udp_buff1));
