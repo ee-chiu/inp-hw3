@@ -462,6 +462,30 @@ void add_history(const char* name, const char* msg){
     return;
 }
 
+void convert(char* data, const char * word){
+    char* ptr = strstr(data, word);
+    for(int i = 1 ; i <= (int) strlen(word) ; i++) {
+        *ptr = '*';
+        ptr++;
+    }
+
+    return;
+}
+
+void filter(char* data){
+    if(strstr(data, "how") != NULL) convert(data, "how");
+    if(strstr(data, "you") != NULL) convert(data, "you");
+    if(strstr(data, "or") != NULL) convert(data, "or");
+    if(strstr(data, "pek0") != NULL) convert(data, "pek0");
+    if(strstr(data, "tea") != NULL) convert(data, "tea");
+    if(strstr(data, "ha") != NULL) convert(data, "ha");
+    if(strstr(data, "kon") != NULL) convert(data, "kon");
+    if(strstr(data, "pain") != NULL) convert(data, "pain");
+    if(strstr(data, "Starburst Stream") != NULL) convert(data, "Starburst Stream");
+
+    return;
+}
+
 void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
     bzero(&udp_buff1, sizeof(udp_buff1));
     bzero(&udp_buff2, sizeof(udp_buff2));
@@ -480,6 +504,11 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         struct b* pb2 = (struct b *) (srv_buff + sizeof(struct a) + sizeof(struct b) + name_len);
         unsigned short msg_len = ntohs(pb2->len);
         unsigned char* msg = get_data(msg_len, pb2);
+        filter((char*) msg);
+
+        /*update version 1 packet msg*/
+        struct b* pb2_ = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_len);
+        memcpy(pb2_->data, msg, msg_len);
 
         /*set version 2 packet*/
         struct a* pA = (struct a *) udp_buff2;
@@ -550,9 +579,21 @@ void udp_main(int udpfd, struct sockaddr* cli_addr_ptr, socklen_t len){
         int msg_decode_len = -1;
         string msg_decode_str = decode(msg, msg_len, msg_decode_len);
         const char* msg_decode = msg_decode_str.c_str();
+        filter((char*) msg_decode);
         struct b* pB2 = (struct b *) (udp_buff1 + sizeof(struct a) + sizeof(struct b) + name_decode_len);
         pB2->len = htons(msg_decode_len);
         memcpy(pB2->data, msg_decode, msg_decode_len);
+
+        //snprintf(cli_buff, sizeof(cli_buff), "name: %s, msg: %s", pB1->data, pB2->data);
+        //Sendto(udpfd, cli_buff, strlen(cli_buff), 0, cli_addr_ptr, len);
+
+
+        /*update version 2 packet*/
+        struct c* pc2_ = (struct c *) (udp_buff2 + sizeof(struct a) + (name_len + 1));
+        int msg_encode_len = -1;
+        string msg_encode_str = encode((const unsigned char *) msg_decode, strlen(msg_decode), msg_encode_len);
+        const char* msg_encode = msg_encode_str.c_str();
+        memcpy(pc2_->data, msg_encode, msg_encode_len);
 
         add_history((const char *) pB1->data, (const char *) pB2->data);
 
