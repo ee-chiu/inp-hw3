@@ -114,8 +114,14 @@ void Exit(int sockfd, const vector<string> &para){
         return;
     }
 
-    if(isLogin[sockfd]) 
+    if(isLogin[sockfd]) {
         write2cli2(sockfd, "Bye", user[sockfd].c_str());
+
+        int port = user2port[user[sockfd]];
+        for(int i = 0 ; i < (int) ports.size() ; i++){
+            if(ports[i] == port) { ports.erase(ports.begin() + i); break; }
+        } 
+    }
 
     isLogin[sockfd] = false;
     user2isLogin[user[sockfd]] = false;
@@ -196,6 +202,12 @@ void logout(int sockfd, const vector<string> &para){
     }
 
     write2cli2(sockfd, "Bye", user[sockfd].c_str());
+
+    int port = user2port[user[sockfd]];
+    for(int i = 0 ; i < (int) ports.size() ; i++){
+        if(ports[i] == port) { ports.erase(ports.begin() + i); break; }
+    } 
+
     isLogin[sockfd] = false;
     user2isLogin[user[sockfd]] = false;
     user[sockfd].clear();
@@ -211,6 +223,8 @@ bool isNum(string port){
 }
 
 int string2int(string port){
+    if (port[0] > '9' || port[0] < '0') return -1;
+
     int num = 0;
 
     for(int i = 0 ; i < (int) port.size() ; i++)
@@ -505,7 +519,7 @@ void kick(string name_str){
 
     int port = user2port[name_str];
     for(int i = 0 ; i < (int) ports.size() ; i++){
-        if(ports[i] == port) ports.erase(ports.begin() + i);
+        if(ports[i] == port) { ports.erase(ports.begin() + i); break; }
     }
 
     user2isBlack[name_str] = true;
